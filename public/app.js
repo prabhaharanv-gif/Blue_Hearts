@@ -196,12 +196,19 @@ if (PACKAGED) {
   // No origin to probe, so the passcode field is always offered; it may be
   // left blank when the server does not ask for one.
   passField.classList.remove('hidden');
-  passInput.placeholder = 'Passcode (if any)';
+  passInput.placeholder = 'Passcode';
 
   const known = knownServer();
   serverInput.value = known;
-  if (known) changeServerBtn.classList.remove('hidden');
-  else serverInput.classList.remove('hidden');
+  if (known) loadConfig(known);  // hides the passcode box if that server wants none
+  if (!known) {
+    serverInput.classList.remove('hidden');
+  } else if (!DEFAULT_SERVER) {
+    // Only offer the link when the address was typed in rather than built in;
+    // a baked-in build stays a plain name-and-passcode screen. Either way the
+    // field comes back by itself if the server cannot be reached.
+    changeServerBtn.classList.remove('hidden');
+  }
 }
 
 // Asks the server whether it wants a passcode, so the field only shows when
