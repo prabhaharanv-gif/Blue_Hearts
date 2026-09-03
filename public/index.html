@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+<meta name="theme-color" content="#075E54" />
+<title>Blue Hearts</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💙</text></svg>" />
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<!-- ── Login ───────────────────────────────────────────── -->
+<div id="login" class="login">
+  <div class="login-card">
+    <div class="login-heart">💙</div>
+    <h1>Blue Hearts</h1>
+    <p class="login-sub">Just the two of us. Nothing is saved.</p>
+    <form id="login-form" autocomplete="off">
+      <input id="name-input" type="text" placeholder="Your name" maxlength="24" autocomplete="off" spellcheck="false" />
+      <input id="pass-input" class="hidden" type="password" placeholder="Passcode" maxlength="64" autocomplete="off" />
+      <button type="submit">Start chatting</button>
+    </form>
+    <div id="login-error" class="login-error"></div>
+  </div>
+</div>
+
+<!-- ── Chat ────────────────────────────────────────────── -->
+<div id="app" class="app hidden">
+  <header class="topbar">
+    <div class="avatar" id="peer-avatar">·</div>
+    <div class="peer">
+      <div class="peer-name" id="peer-name">Waiting…</div>
+      <div class="peer-status" id="peer-status">no one else here yet</div>
+    </div>
+    <button class="icon-btn" id="theme-btn" title="Toggle dark mode" aria-label="Toggle dark mode">
+      <svg viewBox="0 0 24 24" width="21" height="21"><path fill="currentColor" d="M12 3a9 9 0 1 0 9 9c0-.46-.04-.92-.1-1.36A5.39 5.39 0 0 1 12 3Z"/></svg>
+    </button>
+    <button class="icon-btn" id="clear-btn" title="Clear this chat" aria-label="Clear chat">
+      <svg viewBox="0 0 24 24" width="21" height="21"><path fill="currentColor" d="M6 7h12l-1 13H7L6 7Zm3-3h6l1 2H8l1-2Z"/></svg>
+    </button>
+  </header>
+
+  <main id="messages" class="messages">
+    <div class="day-chip">Today</div>
+    <div class="notice">🔒 Messages live only on your screens. Nothing is stored anywhere.</div>
+  </main>
+
+  <div id="reply-bar" class="reply-bar hidden">
+    <div class="reply-strip"></div>
+    <div class="reply-body">
+      <div class="reply-name" id="reply-name"></div>
+      <div class="reply-text" id="reply-text"></div>
+    </div>
+    <button class="icon-btn" id="reply-cancel" aria-label="Cancel reply">
+      <svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M18.3 5.7 12 12l6.3 6.3-1.4 1.4L10.6 13.4 4.3 19.7 2.9 18.3 9.2 12 2.9 5.7 4.3 4.3l6.3 6.3 6.3-6.3z"/></svg>
+    </button>
+  </div>
+
+  <footer class="composer">
+    <div class="input-wrap">
+      <button class="emoji-btn" id="emoji-btn" aria-label="Emoji">🙂</button>
+      <textarea id="input" rows="1" placeholder="Type a message" maxlength="4000"></textarea>
+    </div>
+    <button class="send-btn" id="send-btn" aria-label="Send">
+      <svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M2.01 21 23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+    </button>
+  </footer>
+
+  <div id="emoji-panel" class="emoji-panel hidden"></div>
+</div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

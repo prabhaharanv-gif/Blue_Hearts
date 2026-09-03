@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: blue-hearts
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: PASSCODE
+        sync: false
