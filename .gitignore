@@ -1,3 +1,13 @@
 node_modules/
 .env
 npm-debug.log*
+
+# Capacitor / Android build output
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/.idea/
+android/app/src/main/assets/public/
+.gradle/
+dist/

@@ -5,7 +5,13 @@ const { Server } = require('socket.io');
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server, { maxHttpBufferSize: 2e6 });
+// The packaged Android app loads from its own origin, so the socket and the
+// /config probe have to be reachable cross-origin. The passcode is what
+// actually guards the room.
+const io = new Server(server, {
+  maxHttpBufferSize: 2e6,
+  cors: { origin: '*', methods: ['GET', 'POST'] },
+});
 
 const PORT = process.env.PORT || 3000;
 const MAX_MEMBERS = 2;
@@ -28,7 +34,10 @@ function broadcastPresence() {
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Lets the login screen know whether to show the passcode field.
-app.get('/config', (_req, res) => res.json({ passcodeRequired: !!PASSCODE }));
+app.get('/config', (_req, res) => {
+  res.set('Access-Control-Allow-Origin', '*');
+  res.json({ passcodeRequired: !!PASSCODE });
+});
 
 io.on('connection', (socket) => {
   socket.on('join', (payload, ack) => {

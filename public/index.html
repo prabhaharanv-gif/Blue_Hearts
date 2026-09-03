@@ -23,6 +23,7 @@
     <h1>Blue Hearts</h1>
     <p class="login-sub">Just the two of us. Nothing is saved.</p>
     <form id="login-form" autocomplete="off">
+      <input id="server-input" class="hidden" type="url" placeholder="Server address" autocomplete="off" spellcheck="false" inputmode="url" />
       <input id="name-input" type="text" placeholder="Your name" maxlength="24" autocomplete="off" spellcheck="false" />
       <input id="pass-input" class="hidden" type="password" placeholder="Passcode" maxlength="64" autocomplete="off" />
       <button type="submit">Start chatting</button>
@@ -77,7 +78,7 @@
   <div id="emoji-panel" class="emoji-panel hidden"></div>
 </div>
 
-<script src="/socket.io/socket.io.js"></script>
+<script src="vendor/socket.io.min.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

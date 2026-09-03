@@ -1,0 +1,12 @@
+{
+  "appId": "com.bluehearts.chat",
+  "appName": "Blue Hearts",
+  "webDir": "public",
+  "android": {
+    "allowMixedContent": true
+  },
+  "server": {
+    "androidScheme": "https",
+    "cleartext": true
+  }
+}

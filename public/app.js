@@ -1,9 +1,28 @@
 /* Blue Hearts — two-person chat client.
    Every message lives in this page's memory only. Refresh = gone. */
 
-const socket = io({ autoConnect: true });
-
 const $ = (id) => document.getElementById(id);
+
+/* When the page is served by the chat server itself, the socket just talks to
+   its own origin. Inside the packaged Android app there is no origin to talk
+   to, so the first screen asks for the server address and remembers it. */
+const PACKAGED = !!window.Capacitor || location.protocol === 'file:';
+const SERVER_KEY = 'bh-server';
+
+function savedServer() {
+  try { return localStorage.getItem(SERVER_KEY) || ''; } catch (_) { return ''; }
+}
+function normaliseServer(raw) {
+  let v = String(raw || '').trim().replace(/\/+$/, '');
+  if (!v) return '';
+  if (!/^https?:\/\//i.test(v)) v = 'https://' + v;
+  return v;
+}
+
+// In the browser the socket exists from the start; in the packaged app it is
+// created once the person has told us which server to reach.
+let socket = PACKAGED ? null : io({ autoConnect: true });
+
 const loginView = $('login');
 const appView = $('app');
 const loginForm = $('login-form');
@@ -145,12 +164,27 @@ $('reply-cancel').addEventListener('click', cancelReply);
 
 /* ── login ── */
 const passInput = $('pass-input');
+const serverInput = $('server-input');
 let myPass = '';
 
-fetch('/config')
-  .then((r) => r.json())
-  .then((cfg) => { if (cfg.passcodeRequired) passInput.classList.remove('hidden'); })
-  .catch(() => {});
+if (PACKAGED) {
+  // No origin to probe, so show both fields; the passcode may be left blank
+  // when the server does not ask for one.
+  serverInput.classList.remove('hidden');
+  serverInput.value = savedServer();
+  passInput.classList.remove('hidden');
+  passInput.placeholder = 'Passcode (if any)';
+}
+
+// Asks the server whether it wants a passcode, so the field only shows when
+// it is actually needed. `base` is '' in the browser (same origin).
+function loadConfig(base) {
+  return fetch(base + '/config')
+    .then((r) => r.json())
+    .then((cfg) => { passInput.classList.toggle('hidden', !cfg.passcodeRequired); })
+    .catch(() => {});
+}
+if (!PACKAGED) loadConfig('');
 
 loginForm.addEventListener('submit', (e) => {
   e.preventDefault();
@@ -158,15 +192,35 @@ loginForm.addEventListener('submit', (e) => {
   if (!name) return;
   myPass = passInput.value;
   loginError.textContent = '';
+
+  if (PACKAGED) {
+    const url = normaliseServer(serverInput.value);
+    if (!url) { loginError.textContent = 'Enter the server address.'; return; }
+    try { localStorage.setItem(SERVER_KEY, url); } catch (_) {}
+    if (!socket || socket.io.uri !== url) {
+      if (socket) socket.close();
+      socket = io(url, { transports: ['websocket', 'polling'], reconnectionAttempts: 8 });
+      wireSocket(socket);
+      socket.on('connect_error', () => {
+        loginError.textContent = 'Cannot reach that server. Check the address.';
+      });
+    }
+  }
+  doJoin(name);
+});
+
+function doJoin(name) {
+  loginError.textContent = 'Connecting…';
   socket.emit('join', { name, passcode: myPass }, (res) => {
     if (!res.ok) { loginError.textContent = res.error; return; }
+    loginError.textContent = '';
     me = res.name;
     loginView.classList.add('hidden');
     appView.classList.remove('hidden');
     inputEl.focus();
     updatePresence(res.members);
   });
-});
+}
 
 /* ── presence ── */
 function updatePresence(list) {
@@ -220,30 +274,33 @@ function sendTyping(on) {
 }
 
 /* ── incoming ── */
-socket.on('message', (msg) => {
+function wireSocket(s) {
+s.on('message', (msg) => {
   showTyping(false);
   addMessage(msg, false);
-  socket.emit('seen', [msg.id]);
+  s.emit('seen', [msg.id]);
   if (document.hidden) { unread++; document.title = `(${unread}) Blue Hearts`; ping(); }
 });
-socket.on('seen', (ids) => ids.forEach((id) => setTick(id, 'read')));
-socket.on('typing', ({ typing }) => {
+s.on('seen', (ids) => ids.forEach((id) => setTick(id, 'read')));
+s.on('typing', ({ typing }) => {
   peerStatusEl.textContent = typing ? 'typing…' : 'online';
   peerStatusEl.classList.toggle('typing', typing);
   showTyping(typing);
 });
-socket.on('presence', ({ members }) => {
+s.on('presence', ({ members }) => {
   updatePresence(members);
   if (members.length > 1) sent.forEach((_, id) => setTick(id, 'delivered'));
 });
-socket.on('system', ({ text }) => sysline(text));
-socket.on('clear', () => wipe(false));
-socket.on('disconnect', () => { peerStatusEl.textContent = 'reconnecting…'; });
-socket.on('connect', () => {
-  if (me) socket.emit('join', { name: me, passcode: myPass }, (res) => {
+s.on('system', ({ text }) => sysline(text));
+s.on('clear', () => wipe(false));
+s.on('disconnect', () => { peerStatusEl.textContent = 'reconnecting…'; });
+s.on('connect', () => {
+  if (me) s.emit('join', { name: me, passcode: myPass }, (res) => {
     if (res.ok) updatePresence(res.members);
   });
 });
+}
+if (socket) wireSocket(socket);
 
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden) { unread = 0; document.title = 'Blue Hearts'; }
