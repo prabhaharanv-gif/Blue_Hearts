@@ -57,15 +57,29 @@ Once installed it opens fullscreen like any other chat app. It still needs a con
 - Online / typing… status in the header
 - Sent ✓, delivered ✓✓, read ✓✓ (blue) ticks
 - Reply to a message (double-click a bubble, or the ↩ button)
+- Edit your own message (the ✎ button) — it changes on both screens and is marked *edited*
+- Send photos, video, audio and files (📎, or paste a screenshot, or drag one in) — tap a photo for full size
 - Emoji picker, dark mode, sound + unread count when the tab is in the background
 - "Clear chat" wipes both screens instantly
-- Third person is refused with "Chat is full"
+- Third person is refused with "Not allowed."
+
+### Sending attachments
+
+Anything up to **10 MB** goes through. Photos are redrawn to 1600px on the long
+edge before they leave the browser, so a 6 MB phone picture arrives as a couple
+of hundred KB; GIFs are left alone so they keep moving. Anything still over the
+limit is refused on your own screen and never sent.
+
+Pick several files at once and each becomes its own message — whatever you had
+typed rides along as the caption on the first.
 
 ## No storage — how
 
 - The server keeps only the two connected names in RAM. Message text is relayed to the other socket and never held.
+- Attachments are relayed the same way: the bytes pass straight from one socket to the other and are never decoded, written down, or cached.
 - No database, no files, no logs of message content.
-- The browser keeps messages in a JS array only. Refresh, and the conversation is gone from both sides.
+- The browser holds messages in memory only, and shows attachments from `blob:` URLs that it releases on "Clear chat" and on log out. Nothing reaches your downloads folder unless you save it yourself.
+- Refresh, and the conversation is gone from both sides.
 - The only thing saved locally is your light/dark preference.
 
 Over HTTPS on Render, traffic is encrypted in transit. It is **not** end-to-end encrypted — the server relays plaintext in memory. Fine for private chat, not for secrets you'd protect from the host.

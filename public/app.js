@@ -38,14 +38,26 @@ const replyBar = $('reply-bar');
 const replyNameEl = $('reply-name');
 const replyTextEl = $('reply-text');
 const emojiPanel = $('emoji-panel');
+const editBar = $('edit-bar');
+const editTextEl = $('edit-text');
+const attachTray = $('attach-tray');
+const fileInput = $('file-input');
+const lightbox = $('lightbox');
+const lightboxImg = $('lightbox-img');
 
 let me = null;
 let peer = null;
 let replyTo = null;
+let editing = null;       // id of the message currently being reworded
 let lastSide = null;
 let unread = 0;
 const sent = new Map();   // id -> { el, tickEl }
 const seenText = new Map(); // id -> { from, text }  (for reply quotes, in memory only)
+const bubbles = new Map();  // id -> { bubble, body, meta, mine }
+let pending = [];           // attachments picked but not sent yet
+// Attachments are shown from blob: URLs, so they never touch disk. Every one
+// is released when the chat is cleared or on log out.
+const blobUrls = new Set();
 
 /* ── theme ── */
 const savedTheme = localStorage.getItem('bh-theme');
@@ -89,7 +101,227 @@ function sysline(text) {
   scrollDown();
 }
 
+/* ── attachments ── */
+// Matches the server's ceiling. Photos are shrunk under it automatically;
+// anything still over is refused here rather than half-sent.
+const MAX_SEND_BYTES = 10 * 1024 * 1024;
+const IMAGE_MAX_EDGE = 1600;
+const IMAGE_SHRINK_OVER = 700 * 1024;
+
+function kindOf(mime) {
+  if (/^image\//.test(mime)) return 'image';
+  if (/^video\//.test(mime)) return 'video';
+  if (/^audio\//.test(mime)) return 'audio';
+  return 'file';
+}
+function prettySize(n) {
+  if (n < 1024) return n + ' B';
+  if (n < 1048576) return Math.round(n / 1024) + ' KB';
+  return (n / 1048576).toFixed(1) + ' MB';
+}
+function blobUrl(data, mime) {
+  const url = URL.createObjectURL(new Blob([data], { type: mime || 'application/octet-stream' }));
+  blobUrls.add(url);
+  return url;
+}
+function dropUrl(url) {
+  if (!url) return;
+  URL.revokeObjectURL(url);
+  blobUrls.delete(url);
+}
+function releaseBlobs() {
+  blobUrls.forEach((u) => URL.revokeObjectURL(u));
+  blobUrls.clear();
+}
+// What a reply quote says when the message it points at is an attachment.
+function mediaLabel(m) {
+  if (!m) return '';
+  return m.kind === 'image' ? '\uD83D\uDCF7 Photo'
+    : m.kind === 'video' ? '\uD83C\uDFAC Video'
+    : m.kind === 'audio' ? '\uD83C\uDFB5 Audio'
+    : '\uD83D\uDCC4 ' + m.name;
+}
+
+// A photo straight off a phone is many times larger than a chat needs, so it
+// is redrawn smaller before it goes anywhere. GIFs are left alone -- a canvas
+// would flatten them to one frame.
+function shrinkImage(file) {
+  return new Promise((resolve) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      const scale = Math.min(1, IMAGE_MAX_EDGE / Math.max(img.width, img.height));
+      const c = document.createElement('canvas');
+      c.width = Math.max(1, Math.round(img.width * scale));
+      c.height = Math.max(1, Math.round(img.height * scale));
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(url);
+      c.toBlob((b) => resolve(b && b.size < file.size ? b : file), 'image/jpeg', 0.82);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); resolve(file); };
+    img.src = url;
+  });
+}
+
+async function toAttachment(file) {
+  const kind = kindOf(file.type);
+  let blob = file;
+  if (kind === 'image' && file.type !== 'image/gif' && file.size > IMAGE_SHRINK_OVER) {
+    blob = await shrinkImage(file);
+  }
+  if (blob.size > MAX_SEND_BYTES) {
+    return { error: `${file.name} is ${prettySize(blob.size)} \u2014 too big to send (limit ${prettySize(MAX_SEND_BYTES)}).` };
+  }
+  const mime = blob.type || file.type || 'application/octet-stream';
+  let name = file.name || 'file';
+  if (blob !== file) name = name.replace(/\.[^.]+$/, '') + '.jpg';
+  return { kind, mime, name, size: blob.size, data: await blob.arrayBuffer() };
+}
+
+async function addFiles(files) {
+  for (const f of files) {
+    const a = await toAttachment(f);
+    if (a.error) { sysline(a.error); continue; }
+    if (a.kind === 'image') a.preview = blobUrl(a.data, a.mime);
+    pending.push(a);
+  }
+  renderTray();
+  inputEl.focus();
+}
+
+// Thumbnails of what is about to be sent, each one removable before it goes.
+function renderTray() {
+  attachTray.classList.toggle('hidden', pending.length === 0);
+  attachTray.textContent = '';
+  pending.forEach((a) => {
+    const chip = document.createElement('div');
+    chip.className = 'chip';
+
+    if (a.kind === 'image') {
+      const img = document.createElement('img');
+      img.src = a.preview;
+      img.alt = '';
+      chip.appendChild(img);
+    } else {
+      const icon = document.createElement('span');
+      icon.className = 'chip-icon';
+      icon.textContent = a.kind === 'video' ? '\uD83C\uDFAC' : a.kind === 'audio' ? '\uD83C\uDFB5' : '\uD83D\uDCC4';
+      chip.appendChild(icon);
+    }
+
+    const label = document.createElement('span');
+    label.className = 'chip-name';
+    label.textContent = a.name;
+    chip.appendChild(label);
+
+    const size = document.createElement('span');
+    size.className = 'chip-size';
+    size.textContent = prettySize(a.size);
+    chip.appendChild(size);
+
+    const x = document.createElement('button');
+    x.type = 'button';
+    x.className = 'chip-x';
+    x.textContent = '\u00D7';
+    x.setAttribute('aria-label', 'Remove ' + a.name);
+    x.addEventListener('click', () => {
+      dropUrl(a.preview);
+      pending = pending.filter((item) => item !== a);
+      renderTray();
+    });
+    chip.appendChild(x);
+
+    attachTray.appendChild(chip);
+  });
+}
+
+$('attach-btn').addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', () => {
+  const files = [...fileInput.files];
+  fileInput.value = '';   // so picking the same file twice still fires
+  addFiles(files);
+});
+
+// Paste a screenshot straight in, or drop a file anywhere on the chat.
+inputEl.addEventListener('paste', (e) => {
+  const files = [...((e.clipboardData && e.clipboardData.files) || [])];
+  if (!files.length) return;
+  e.preventDefault();
+  addFiles(files);
+});
+appView.addEventListener('dragover', (e) => { e.preventDefault(); appView.classList.add('dropping'); });
+appView.addEventListener('dragleave', (e) => {
+  if (e.target === appView) appView.classList.remove('dropping');
+});
+appView.addEventListener('drop', (e) => {
+  e.preventDefault();
+  appView.classList.remove('dropping');
+  const files = [...((e.dataTransfer && e.dataTransfer.files) || [])];
+  if (files.length) addFiles(files);
+});
+
+/* ── lightbox ── */
+function openLightbox(url, name) {
+  lightboxImg.src = url;
+  lightboxImg.alt = name || '';
+  lightbox.classList.remove('hidden');
+}
+function closeLightbox() {
+  lightbox.classList.add('hidden');
+  lightboxImg.removeAttribute('src');
+}
+lightbox.addEventListener('click', closeLightbox);
+
 /* ── rendering ── */
+function renderMedia(m) {
+  const url = blobUrl(m.data, m.mime);
+  const wrap = document.createElement('div');
+  wrap.className = 'media media-' + m.kind;
+
+  if (m.kind === 'image') {
+    const img = document.createElement('img');
+    img.src = url;
+    img.alt = m.name;
+    // A picture arriving changes the height of the thread, so follow it down.
+    img.addEventListener('load', () => scrollDown());
+    img.addEventListener('click', () => openLightbox(url, m.name));
+    wrap.appendChild(img);
+  } else if (m.kind === 'video') {
+    const v = document.createElement('video');
+    v.src = url;
+    v.controls = true;
+    v.playsInline = true;
+    v.preload = 'metadata';
+    wrap.appendChild(v);
+  } else if (m.kind === 'audio') {
+    const a = document.createElement('audio');
+    a.src = url;
+    a.controls = true;
+    a.preload = 'metadata';
+    wrap.appendChild(a);
+  } else {
+    const link = document.createElement('a');
+    link.className = 'file-chip';
+    link.href = url;
+    link.download = m.name;
+    const icon = document.createElement('span');
+    icon.className = 'file-icon';
+    icon.textContent = '\uD83D\uDCC4';
+    const meta = document.createElement('span');
+    meta.className = 'file-meta';
+    const nm = document.createElement('span');
+    nm.className = 'file-name';
+    nm.textContent = m.name;
+    const sz = document.createElement('span');
+    sz.className = 'file-size';
+    sz.textContent = prettySize(m.size) + ' \u00B7 tap to save';
+    meta.append(nm, sz);
+    link.append(icon, meta);
+    wrap.appendChild(link);
+  }
+  return wrap;
+}
+
 function addMessage(msg, mine) {
   const row = document.createElement('div');
   row.className = 'row ' + (mine ? 'out' : 'in') + (lastSide === (mine ? 'out' : 'in') ? '' : ' tail');
@@ -98,24 +330,47 @@ function addMessage(msg, mine) {
   const bubble = document.createElement('div');
   bubble.className = 'bubble';
 
-  let html = '';
   if (msg.replyTo && seenText.has(msg.replyTo)) {
     const q = seenText.get(msg.replyTo);
-    html += `<div class="quote"><div class="qn">${esc(q.from === me ? 'You' : q.from)}</div><div class="qt">${esc(q.text)}</div></div>`;
+    const quote = document.createElement('div');
+    quote.className = 'quote';
+    quote.innerHTML = `<div class="qn">${esc(q.from === me ? 'You' : q.from)}</div><div class="qt">${esc(q.text)}</div>`;
+    bubble.appendChild(quote);
   }
-  html += `<div class="body">${linkify(msg.text)}</div>`;
-  html += `<div class="meta"><span>${clock(msg.at)}</span>${mine ? TICKS.pending : ''}</div>`;
-  html += `<button class="reply-btn" title="Reply">↩</button>`;
-  bubble.innerHTML = html;
 
-  bubble.querySelector('.reply-btn').addEventListener('click', () => startReply(msg.id));
+  if (msg.media) bubble.appendChild(renderMedia(msg.media));
+
+  // Kept even when empty, so an edit can add a caption to a bare photo.
+  const body = document.createElement('div');
+  body.className = 'body' + (msg.text ? '' : ' hidden');
+  body.innerHTML = linkify(msg.text || '');
+  bubble.appendChild(body);
+
+  const meta = document.createElement('div');
+  // A photo or clip with no caption has nowhere to put the time but over the
+  // picture. A file or audio row keeps it below, where there is space.
+  const overMedia = !!msg.media && !msg.text && (msg.media.kind === 'image' || msg.media.kind === 'video');
+  meta.className = 'meta' + (overMedia ? ' on-media' : '');
+  meta.innerHTML = `<span class="edited hidden">edited</span><span>${clock(msg.at)}</span>${mine ? TICKS.pending : ''}`;
+  bubble.appendChild(meta);
+
+  const actions = document.createElement('div');
+  actions.className = 'actions';
+  actions.appendChild(actionBtn('\u21A9', 'Reply', () => startReply(msg.id)));
+  // Only your own wording is yours to change, and only where there is text.
+  if (mine && msg.text) {
+    actions.appendChild(actionBtn('\u270E', 'Edit', () => startEdit(msg.id)));
+  }
+  bubble.appendChild(actions);
+
   bubble.addEventListener('dblclick', () => startReply(msg.id));
 
   row.appendChild(bubble);
   messagesEl.appendChild(row);
-  seenText.set(msg.id, { from: msg.from, text: msg.text });
+  seenText.set(msg.id, { from: msg.from, text: msg.text || mediaLabel(msg.media) });
+  bubbles.set(msg.id, { bubble, body, meta, mine });
 
-  if (mine) sent.set(msg.id, { meta: bubble.querySelector('.meta') });
+  if (mine) sent.set(msg.id, { meta });
   scrollDown(mine);
   return bubble;
 }
@@ -129,6 +384,17 @@ function setTick(id, state) {
     state === 'read' ? TICKS.double.replace('class="tick"', 'class="tick read"')
     : state === 'delivered' ? TICKS.double
     : TICKS.sent);
+}
+
+function actionBtn(glyph, label, onClick) {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.className = 'act';
+  b.title = label;
+  b.setAttribute('aria-label', label);
+  b.textContent = glyph;
+  b.addEventListener('click', onClick);
+  return b;
 }
 
 /* ── typing indicator ── */
@@ -161,6 +427,48 @@ function cancelReply() {
   replyBar.classList.add('hidden');
 }
 $('reply-cancel').addEventListener('click', cancelReply);
+
+/* ── edit ── */
+function autosize() {
+  inputEl.style.height = 'auto';
+  inputEl.style.height = Math.min(inputEl.scrollHeight, 130) + 'px';
+}
+
+function startEdit(id) {
+  const rec = bubbles.get(id);
+  const q = seenText.get(id);
+  if (!rec || !rec.mine || !q) return;
+  cancelReply();
+  editing = id;
+  editTextEl.textContent = q.text;
+  editBar.classList.remove('hidden');
+  inputEl.value = q.text;
+  autosize();
+  inputEl.focus();
+  inputEl.setSelectionRange(inputEl.value.length, inputEl.value.length);
+}
+function cancelEdit() {
+  if (!editing) return;
+  editing = null;
+  editBar.classList.add('hidden');
+  inputEl.value = '';
+  autosize();
+}
+$('edit-cancel').addEventListener('click', cancelEdit);
+
+// Rewrites one bubble in place and marks it, on whichever screen this runs.
+function applyEdit(id, text) {
+  const rec = bubbles.get(id);
+  if (!rec) return;
+  rec.body.innerHTML = linkify(text);
+  rec.body.classList.remove('hidden');
+  rec.meta.classList.remove('on-media');
+  rec.bubble.classList.add('was-edited');
+  const tag = rec.meta.querySelector('.edited');
+  if (tag) tag.classList.remove('hidden');
+  const q = seenText.get(id);
+  if (q) q.text = text;
+}
 
 /* ── login ── */
 const passInput = $('pass-input');
@@ -282,15 +590,52 @@ function updatePresence(list) {
 }
 
 /* ── sending ── */
+function emitMessage(text, media, rt) {
+  const id = 'm' + Date.now() + Math.random().toString(36).slice(2, 6);
+  addMessage({ id, from: me, text, at: Date.now(), replyTo: rt, media }, true);
+  const wire = { id, text, replyTo: rt };
+  if (media) wire.media = { kind: media.kind, mime: media.mime, name: media.name, data: media.data };
+  socket.emit('message', wire, (res) => {
+    if (res && res.ok) setTick(id, res.delivered ? 'delivered' : 'sent');
+    else if (res && res.error) sysline(res.error);
+  });
+}
+
 function send() {
   const text = inputEl.value.replace(/\s+$/, '');
-  if (!text.trim()) return;
-  const id = 'm' + Date.now() + Math.random().toString(36).slice(2, 6);
-  const msg = { id, from: me, text, at: Date.now(), replyTo };
-  addMessage(msg, true);
-  socket.emit('message', { id, text, replyTo }, (res) => {
-    if (res && res.ok) setTick(id, res.delivered ? 'delivered' : 'sent');
-  });
+
+  // While editing, the composer stands in for one existing bubble. Emptying
+  // the box is not a delete, so an empty edit is simply ignored.
+  if (editing) {
+    if (!text.trim()) return;
+    const id = editing;
+    const q = seenText.get(id);
+    if (!q || q.text !== text) {
+      applyEdit(id, text);
+      socket.emit('edit', { id, text });
+    }
+    cancelEdit();
+    sendTyping(false);
+    inputEl.focus();
+    return;
+  }
+
+  const items = pending;
+  if (!text.trim() && !items.length) return;
+  pending = [];
+  renderTray();
+
+  if (!items.length) {
+    emitMessage(text, null, replyTo);
+  } else {
+    // What was typed becomes the caption on the first attachment; the rest
+    // go as messages of their own, and the reply stays with the first.
+    items.forEach((a, i) => {
+      emitMessage(i === 0 ? text : '', a, i === 0 ? replyTo : null);
+      dropUrl(a.preview);   // the bubble made its own URL for the same bytes
+    });
+  }
+
   inputEl.value = '';
   inputEl.style.height = 'auto';
   cancelReply();
@@ -300,11 +645,14 @@ function send() {
 sendBtn.addEventListener('click', send);
 inputEl.addEventListener('keydown', (e) => {
   if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
+  if (e.key === 'Escape') { editing ? cancelEdit() : cancelReply(); }
 });
 inputEl.addEventListener('input', () => {
-  inputEl.style.height = 'auto';
-  inputEl.style.height = Math.min(inputEl.scrollHeight, 130) + 'px';
+  autosize();
   sendTyping(inputEl.value.trim().length > 0);
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && !lightbox.classList.contains('hidden')) closeLightbox();
 });
 
 let typingSent = false, typingTimer = null;
@@ -321,6 +669,12 @@ s.on('message', (msg) => {
   addMessage(msg, false);
   s.emit('seen', [msg.id]);
   if (document.hidden) { unread++; document.title = `(${unread}) Blue Hearts`; ping(); }
+});
+// Guarded so an edit can only ever rewrite the other person's own bubble.
+s.on('edit', ({ id, text }) => {
+  const rec = bubbles.get(id);
+  if (!rec || rec.mine) return;
+  applyEdit(id, text);
 });
 s.on('seen', (ids) => ids.forEach((id) => setTick(id, 'read')));
 s.on('typing', ({ typing }) => {
@@ -349,9 +703,15 @@ document.addEventListener('visibilitychange', () => {
 
 /* ── clear ── */
 function wipe(tellPeer) {
+  closeLightbox();
   messagesEl.innerHTML = '';
   sent.clear();
   seenText.clear();
+  bubbles.clear();
+  cancelEdit();
+  pending = [];
+  renderTray();
+  releaseBlobs();
   lastSide = null;
   typingRow = null;
   sysline('Chat cleared');
@@ -379,9 +739,15 @@ $('logout-btn').addEventListener('click', () => {
   document.title = 'Blue Hearts';
   sent.clear();
   seenText.clear();
+  bubbles.clear();
+  pending = [];
+  renderTray();
+  closeLightbox();
+  releaseBlobs();
   lastSide = null;
   typingRow = null;
   messagesEl.innerHTML = MESSAGES_INITIAL;
+  cancelEdit();
   cancelReply();
   inputEl.value = '';
   inputEl.style.height = 'auto';
