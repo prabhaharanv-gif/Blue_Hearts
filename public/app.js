@@ -179,13 +179,29 @@ $('eye-btn').addEventListener('click', () => {
   passInput.focus();
 });
 
-if (PACKAGED) {
-  // No origin to probe, so show both fields; the passcode may be left blank
-  // when the server does not ask for one.
+// A packaged build uses the address baked into server-config.js, or the one
+// entered last time. Either way the field stays out of sight until needed.
+const DEFAULT_SERVER = normaliseServer(window.BLUE_HEARTS_SERVER || '');
+const knownServer = () => savedServer() || DEFAULT_SERVER;
+
+const changeServerBtn = $('change-server');
+function revealServerField() {
   serverInput.classList.remove('hidden');
-  serverInput.value = savedServer();
+  changeServerBtn.classList.add('hidden');
+  serverInput.focus();
+}
+changeServerBtn.addEventListener('click', revealServerField);
+
+if (PACKAGED) {
+  // No origin to probe, so the passcode field is always offered; it may be
+  // left blank when the server does not ask for one.
   passField.classList.remove('hidden');
   passInput.placeholder = 'Passcode (if any)';
+
+  const known = knownServer();
+  serverInput.value = known;
+  if (known) changeServerBtn.classList.remove('hidden');
+  else serverInput.classList.remove('hidden');
 }
 
 // Asks the server whether it wants a passcode, so the field only shows when
@@ -206,15 +222,21 @@ loginForm.addEventListener('submit', (e) => {
   loginError.textContent = '';
 
   if (PACKAGED) {
-    const url = normaliseServer(serverInput.value);
-    if (!url) { loginError.textContent = 'Enter the server address.'; return; }
+    const url = normaliseServer(serverInput.value) || knownServer();
+    if (!url) {
+      loginError.textContent = 'Enter the server address.';
+      revealServerField();
+      return;
+    }
     try { localStorage.setItem(SERVER_KEY, url); } catch (_) {}
     if (!socket || socket.io.uri !== url) {
       if (socket) socket.close();
       socket = io(url, { transports: ['websocket', 'polling'], reconnectionAttempts: 8 });
       wireSocket(socket);
       socket.on('connect_error', () => {
+        // Surface the field again so a wrong address can be corrected.
         loginError.textContent = 'Cannot reach that server. Check the address.';
+        revealServerField();
       });
     }
   }
