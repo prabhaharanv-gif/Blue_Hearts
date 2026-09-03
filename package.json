@@ -4,7 +4,7 @@
   "description": "Private two-person chat. Name-only login, nothing stored.",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node --env-file-if-exists=.env server.js"
   },
   "dependencies": {
     "express": "^5.2.1",
