@@ -1,7 +1,9 @@
 /* Caches the app shell so Blue Hearts opens instantly and survives a dead
    connection. Messages are never cached -- they only exist in the live socket. */
 
-const CACHE = 'blue-hearts-v1';
+// Bump this whenever the shell changes; the activate handler deletes every
+// cache that does not match, so old copies cannot linger.
+const CACHE = 'blue-hearts-v2';
 const SHELL = [
   '/',
   '/index.html',
