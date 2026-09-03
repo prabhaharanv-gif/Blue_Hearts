@@ -4,4 +4,4 @@
 
    Local server on the Wi-Fi:  http://192.168.1.18:3000
    Deployed on Render:         https://blue-hearts.onrender.com  */
-window.BLUE_HEARTS_SERVER = 'http://192.168.1.18:3000';
+window.BLUE_HEARTS_SERVER = 'https://blue-hearts.onrender.com';
