@@ -50,7 +50,7 @@ io.on('connection', (socket) => {
       return ack && ack({ ok: false, error: 'Wrong passcode.' });
     }
     if (members.size >= MAX_MEMBERS) {
-      return ack && ack({ ok: false, error: 'Chat is full — only 2 people allowed.' });
+      return ack && ack({ ok: false, error: 'Not allowed.' });
     }
     const taken = [...members.values()].some(
       (m) => m.name.toLowerCase() === name.toLowerCase()
