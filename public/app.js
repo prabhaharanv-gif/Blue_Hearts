@@ -295,4 +295,28 @@ function ping() {
   } catch (_) { /* sound is optional */ }
 }
 
+/* ── installable app ── */
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+  });
+}
+
+// Android/desktop Chrome fires this when the app qualifies to be installed.
+let installPrompt = null;
+const installBtn = $('install-btn');
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  installPrompt = e;
+  installBtn.classList.remove('hidden');
+});
+installBtn.addEventListener('click', async () => {
+  if (!installPrompt) return;
+  installPrompt.prompt();
+  await installPrompt.userChoice;
+  installPrompt = null;
+  installBtn.classList.add('hidden');
+});
+window.addEventListener('appinstalled', () => installBtn.classList.add('hidden'));
+
 nameInput.focus();

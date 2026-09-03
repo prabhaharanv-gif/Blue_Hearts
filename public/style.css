@@ -34,6 +34,12 @@ html, body {
   background: var(--bg);
   overscroll-behavior: none;
 }
+/* Dynamic viewport height keeps the composer above the on-screen keyboard
+   and under the browser chrome on phones. */
+@supports (height: 100dvh) {
+  html, body { height: 100dvh; }
+}
+
 .hidden { display: none !important; }
 
 /* Login */
@@ -66,6 +72,12 @@ html[data-theme="dark"] .login-card { background: #1F2C34; }
 .login button:hover { filter: brightness(1.06); }
 .login button:active { transform: translateY(1px); }
 .login-error { margin-top: 12px; min-height: 18px; color: #E53935; font-size: 13px; }
+.install-btn {
+  width: 100%; margin-top: 4px; padding: 11px; font-size: 14px; font-weight: 600;
+  border: 1.5px solid var(--border); border-radius: 10px;
+  background: transparent; color: var(--muted); cursor: pointer;
+}
+.install-btn:hover { border-color: var(--accent); color: var(--accent); }
 
 /* Shell */
 .app { height: 100%; display: flex; flex-direction: column; position: relative; }

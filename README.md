@@ -40,6 +40,16 @@ Without `PASSCODE` set, the passcode field is hidden and anyone who can reach th
 
 **Free tier note:** the service sleeps after 15 minutes with nobody connected. The next visit takes ~30 seconds to wake it, then works normally. Upgrading to the $7/mo Starter plan removes the sleep.
 
+## Install it as an app
+
+Blue Hearts is a PWA, so it installs to your home screen or desktop with its own icon and no browser bars. This only works over the deployed HTTPS URL, not the local `http://` one.
+
+- **Android (Chrome):** open the URL → tap the **Install as app** button on the login screen, or menu ⋮ → **Add to Home screen**.
+- **iPhone (Safari — must be Safari, not Chrome):** open the URL → Share button → **Add to Home Screen**.
+- **Windows/Mac (Chrome or Edge):** open the URL → install icon in the address bar, or menu → **Install Blue Hearts**.
+
+Once installed it opens fullscreen like any other chat app. It still needs a connection — it's a real-time chat, so there's no offline mode beyond the screen loading.
+
 ## What it does
 
 - Name + passcode login — no accounts, no signup
