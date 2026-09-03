@@ -57,7 +57,11 @@ html, body {
 html[data-theme="dark"] .login-card { background: #14293A; }
 .login-heart { font-size: 46px; line-height: 1; }
 .login h1 { margin: 10px 0 4px; font-size: 24px; font-weight: 600; letter-spacing: .2px; }
-.login-sub { margin: 0 0 22px; color: var(--muted); font-size: 13.5px; }
+.login-for {
+  margin: 2px 0 0; color: var(--accent); font-size: 14px; font-weight: 600;
+  letter-spacing: .3px;
+}
+.login-sub { margin: 6px 0 22px; color: var(--muted); font-size: 13.5px; }
 .login input {
   width: 100%; padding: 13px 15px; font-size: 16px; border-radius: 10px;
   border: 1.5px solid var(--border); background: transparent; color: var(--text);

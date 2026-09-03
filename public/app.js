@@ -361,6 +361,44 @@ $('clear-btn').addEventListener('click', () => {
   if (confirm('Clear this chat on both screens?')) wipe(true);
 });
 
+/* ── log out ── */
+// Captured before anything is appended, so a logout restores the day chip
+// and the privacy notice exactly as they started.
+const MESSAGES_INITIAL = messagesEl.innerHTML;
+
+$('logout-btn').addEventListener('click', () => {
+  if (!confirm('Log out of this chat?')) return;
+
+  // Drop the identity first: the reconnect handler re-joins only when `me`
+  // is still set, and this leaves nothing of the conversation behind.
+  me = null;
+  peer = null;
+  myPass = '';
+  replyTo = null;
+  unread = 0;
+  document.title = 'Blue Hearts';
+  sent.clear();
+  seenText.clear();
+  lastSide = null;
+  typingRow = null;
+  messagesEl.innerHTML = MESSAGES_INITIAL;
+  cancelReply();
+  inputEl.value = '';
+  inputEl.style.height = 'auto';
+  passInput.value = '';
+  loginError.textContent = '';
+
+  appView.classList.add('hidden');
+  loginView.classList.remove('hidden');
+  nameInput.focus();
+
+  // Bounce the socket so the other side sees us leave and the seat frees up.
+  if (socket) {
+    socket.disconnect();
+    socket.connect();
+  }
+});
+
 /* ── emoji ── */
 const EMOJI = '💙 😀 😂 🥹 😍 🥰 😘 😉 😎 🤗 🤔 😴 😭 😅 🙃 😇 🤭 🥳 😤 🙄 👍 👏 🙏 🤝 💪 🫶 ❤️ 💔 ✨ 🔥 🎉 🎂 🌸 🌙 ☕ 🍕 🚀 📞 ⏰ ✅'.split(' ');
 emojiPanel.innerHTML = EMOJI.map((e) => `<button type="button">${e}</button>`).join('');
