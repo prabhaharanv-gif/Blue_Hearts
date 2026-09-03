@@ -164,15 +164,27 @@ $('reply-cancel').addEventListener('click', cancelReply);
 
 /* ── login ── */
 const passInput = $('pass-input');
+const passField = $('pass-field');
 const serverInput = $('server-input');
 let myPass = '';
+
+// Show/hide the passcode, so a typo is visible before it is submitted.
+$('eye-btn').addEventListener('click', () => {
+  const show = passInput.type === 'password';
+  passInput.type = show ? 'text' : 'password';
+  $('eye-open').classList.toggle('hidden', show);
+  $('eye-shut').classList.toggle('hidden', !show);
+  $('eye-btn').setAttribute('aria-label', show ? 'Hide passcode' : 'Show passcode');
+  $('eye-btn').title = show ? 'Hide passcode' : 'Show passcode';
+  passInput.focus();
+});
 
 if (PACKAGED) {
   // No origin to probe, so show both fields; the passcode may be left blank
   // when the server does not ask for one.
   serverInput.classList.remove('hidden');
   serverInput.value = savedServer();
-  passInput.classList.remove('hidden');
+  passField.classList.remove('hidden');
   passInput.placeholder = 'Passcode (if any)';
 }
 
@@ -181,7 +193,7 @@ if (PACKAGED) {
 function loadConfig(base) {
   return fetch(base + '/config')
     .then((r) => r.json())
-    .then((cfg) => { passInput.classList.toggle('hidden', !cfg.passcodeRequired); })
+    .then((cfg) => { passField.classList.toggle('hidden', !cfg.passcodeRequired); })
     .catch(() => {});
 }
 if (!PACKAGED) loadConfig('');

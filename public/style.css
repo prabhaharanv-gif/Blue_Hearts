@@ -63,14 +63,25 @@ html[data-theme="dark"] .login-card { background: #1F2C34; }
   outline: none; transition: border-color .15s;
 }
 .login input:focus { border-color: var(--accent); }
-.login input + input { margin-top: 10px; }
-.login button {
+.login .field + .field { margin-top: 10px; }
+
+/* Passcode field carries a show/hide eye on the right. */
+.pass-field { position: relative; }
+.pass-field input { padding-right: 46px; }
+.eye {
+  position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+  background: none; border: 0; padding: 8px; cursor: pointer;
+  color: var(--muted); display: flex; border-radius: 8px;
+}
+.eye:hover { color: var(--accent); }
+.eye:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.login form > button[type="submit"] {
   width: 100%; margin-top: 12px; padding: 13px; font-size: 15.5px; font-weight: 600;
   border: 0; border-radius: 10px; background: var(--accent); color: #fff; cursor: pointer;
   transition: filter .15s;
 }
-.login button:hover { filter: brightness(1.06); }
-.login button:active { transform: translateY(1px); }
+.login form > button[type="submit"]:hover { filter: brightness(1.06); }
+.login form > button[type="submit"]:active { transform: translateY(1px); }
 .login-error { margin-top: 12px; min-height: 18px; color: #E53935; font-size: 13px; }
 .install-btn {
   width: 100%; margin-top: 4px; padding: 11px; font-size: 14px; font-weight: 600;
