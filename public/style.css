@@ -1,24 +1,25 @@
 :root {
-  --teal: #075E54;
-  --bg: #ECE5DD;
-  --panel: #F0F0F0;
-  --out: #DCF8C6;
+  --teal: #0369A1;
+  --bg: #E7F1F8;
+  --panel: #EDF3F8;
+  --out: #D2ECFC;
   --in: #FFFFFF;
   --text: #111B21;
   --muted: #667781;
   --tick: #8696A0;
-  --tick-read: #53BDEB;
-  --accent: #25D366;
+  --tick-read: #0C7CC4;
+  --accent: #0EA5E9;
   --border: rgba(0,0,0,.08);
   --shadow: 0 1px .5px rgba(11,20,26,.13);
   --doodle: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140' viewBox='0 0 140 140'%3E%3Cg fill='none' stroke='%23000' stroke-opacity='0.05' stroke-width='1.7' stroke-linecap='round'%3E%3Cpath d='M18 34c4-8 12-8 16 0s12 8 16 0'/%3E%3Ccircle cx='104' cy='26' r='8'/%3E%3Cpath d='M14 92h16M22 84v16'/%3E%3Cpath d='M68 108c7-7 16-2 14 7'/%3E%3Cpath d='M110 78l9 9-9 9-9-9z'/%3E%3Cpath d='M50 60c0-7 9-7 9 0s-9 13-9 13-9-6-9-13 9-7 9 0z'/%3E%3Cpath d='M92 120h20'/%3E%3Ccircle cx='34' cy='128' r='5'/%3E%3C/g%3E%3C/svg%3E");
 }
 html[data-theme="dark"] {
-  --teal: #1F2C34;
-  --bg: #0B141A;
-  --panel: #1F2C34;
-  --out: #005C4B;
-  --in: #202C33;
+  --teal: #14293A;
+  --bg: #08151F;
+  --panel: #14293A;
+  --out: #0B5480;
+  --in: #16283A;
+  --tick-read: #7DD3FC;
   --text: #E9EDEF;
   --muted: #8696A0;
   --border: rgba(255,255,255,.08);
@@ -45,7 +46,7 @@ html, body {
 /* Login */
 .login {
   height: 100%; display: flex; align-items: center; justify-content: center;
-  background: linear-gradient(160deg, #075E54 0%, #128C7E 55%, #25D366 140%);
+  background: linear-gradient(160deg, #075985 0%, #0284C7 55%, #38BDF8 140%);
   padding: 20px;
 }
 .login-card {
@@ -53,7 +54,7 @@ html, body {
   padding: 34px 26px 28px; text-align: center;
   box-shadow: 0 18px 50px rgba(0,0,0,.28);
 }
-html[data-theme="dark"] .login-card { background: #1F2C34; }
+html[data-theme="dark"] .login-card { background: #14293A; }
 .login-heart { font-size: 46px; line-height: 1; }
 .login h1 { margin: 10px 0 4px; font-size: 24px; font-weight: 600; letter-spacing: .2px; }
 .login-sub { margin: 0 0 22px; color: var(--muted); font-size: 13.5px; }
@@ -108,7 +109,7 @@ html[data-theme="dark"] .login-card { background: #1F2C34; }
 .peer { flex: 1 1 auto; min-width: 0; }
 .peer-name { font-size: 16px; font-weight: 600; line-height: 1.25; }
 .peer-status { font-size: 12.5px; opacity: .82; line-height: 1.3; }
-.peer-status.typing { color: #B7F7C6; opacity: 1; }
+.peer-status.typing { color: #BAE6FD; opacity: 1; }
 .icon-btn {
   background: none; border: 0; color: inherit; cursor: pointer;
   padding: 7px; border-radius: 50%; display: flex; opacity: .9;
