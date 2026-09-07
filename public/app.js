@@ -29,6 +29,24 @@ function saveSession(name, pass) {
 function forgetSession() {
   try { localStorage.removeItem(SESSION_KEY); } catch (_) { /* private mode */ }
 }
+
+/* The other person's name outlives the server's memory of them. The free tier
+   sleeps after fifteen idle minutes and wakes up having forgotten everyone, and
+   a header that then goes back to naming nobody is worse than one that still
+   says who it is waiting for. So the name, and when they were last around, are
+   kept here too. Logging out drops them along with everything else. */
+const PEER_KEY = 'bh-peer';
+
+function savedPeer() {
+  try { return JSON.parse(localStorage.getItem(PEER_KEY) || 'null'); } catch (_) { return null; }
+}
+function rememberPeer(p) {
+  if (!p || !p.name) return;
+  try { localStorage.setItem(PEER_KEY, JSON.stringify({ name: p.name, at: p.at })); } catch (_) { /* private mode */ }
+}
+function forgetPeer() {
+  try { localStorage.removeItem(PEER_KEY); } catch (_) { /* private mode */ }
+}
 function normaliseServer(raw) {
   let v = String(raw || '').trim().replace(/\/+$/, '');
   if (!v) return '';
@@ -68,7 +86,7 @@ let replyTo = null;
 let editing = null;       // id of the message currently being reworded
 let lastSide = null;
 let unread = 0;
-let peerLastSeen = null;  // { name, at } from the server, for the Offline line
+let peerLastSeen = savedPeer();  // { name, at } — who the header names when nobody is here
 const sent = new Map();   // id -> { el, tickEl }
 const seenText = new Map(); // id -> { from, text }  (for reply quotes, in memory only)
 const bubbles = new Map();  // id -> { bubble, body, meta, mine }
@@ -849,26 +867,31 @@ function lastSeenText() {
   return ['last seen', day, clock(peerLastSeen.at)].filter(Boolean).join(' ');
 }
 
-// The server remembers when each name was last here, so the header can name
-// the other seat even when nobody is sitting in it right now.
+// The server remembers when each name was last here. Anything newer than what
+// this device already had is kept, so the name survives a server restart.
 function pickLastSeen(seen) {
-  if (!Array.isArray(seen)) return peerLastSeen;
   let best = null;
-  for (const e of seen) {
-    if (!e || !e.name || e.name === me) continue;
-    if (!best || e.at > best.at) best = e;
+  if (Array.isArray(seen)) {
+    for (const e of seen) {
+      if (!e || !e.name || e.name === me) continue;
+      if (!best || e.at > best.at) best = e;
+    }
   }
-  return best || peerLastSeen;
+  if (!best) return peerLastSeen;
+  rememberPeer(best);
+  return best;
 }
 
-// The header when the other seat is empty. Nobody is logged out by the app any
-// more, so it keeps their name and puts the time they were last here
-// underneath, rather than going blank or saying it is connecting to something.
+// The header carries a name and one word about it: Online, or when they were
+// last here. Nothing is ever "waiting" or "connecting" -- there is only one
+// other person, and either they are here or they are not.
 function paintAway() {
-  const known = peerLastSeen && peerLastSeen.name;
-  peerNameEl.textContent = known || 'Waiting…';
-  peerAvatarEl.textContent = known ? known[0] : '·';
-  setStatus(known ? lastSeenText() : 'no one else here yet');
+  const known = peerLastSeen && peerLastSeen.name !== me ? peerLastSeen : null;
+  peerNameEl.textContent = known ? known.name : 'No one yet';
+  peerAvatarEl.textContent = known ? known.name[0] : '·';
+  // A name with no time behind it is simply offline; the line stays empty only
+  // on a device that has never seen the other person at all.
+  setStatus(known ? (lastSeenText() || 'Offline') : '');
   showTyping(false);
 }
 
@@ -883,6 +906,9 @@ function updatePresence(list, seen) {
     // else takes the seat it goes now rather than waiting out the timer.
     if (heldFor && heldFor !== peer) dropHeld();
     else keepHeld();
+    // Seeing them is the freshest "last seen" there is, for when they go.
+    peerLastSeen = { name: peer, at: Date.now() };
+    rememberPeer(peerLastSeen);
     peerNameEl.textContent = peer;
     peerAvatarEl.textContent = peer[0];
     setStatus('Online');
@@ -999,7 +1025,7 @@ s.on('disconnect', () => {
   // The socket comes back by itself, so there is no "reconnecting…" to put in
   // the header. From this screen's side, now is simply the last moment the
   // other person could be seen -- nothing newer can arrive down a dead line.
-  if (peer) peerLastSeen = { name: peer, at: Date.now() };
+  if (peer) { peerLastSeen = { name: peer, at: Date.now() }; rememberPeer(peerLastSeen); }
   peer = null;
   paintAway();
 });
@@ -1090,6 +1116,8 @@ $('logout-btn').addEventListener('click', () => {
   // is a name to re-join as. Forgetting the kept sign-in is what makes this
   // button the only way out -- closing the app no longer signs anyone out.
   forgetSession();
+  forgetPeer();
+  peerLastSeen = null;
   restoringAs = null;
   me = null;
   peer = null;
