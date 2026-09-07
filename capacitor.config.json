@@ -1,6 +1,6 @@
 {
   "appId": "com.bluehearts.chat",
-  "appName": "Blue Hearts",
+  "appName": "TicketDesk",
   "webDir": "public",
   "android": {
     "allowMixedContent": true

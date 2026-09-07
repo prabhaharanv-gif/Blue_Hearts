@@ -1,9 +1,9 @@
-/* Caches the app shell so Blue Hearts opens instantly and survives a dead
+/* Caches the app shell so the app opens instantly and survives a dead
    connection. Messages are never cached -- they only exist in the live socket. */
 
 // Bump this whenever the shell changes; the activate handler deletes every
 // cache that does not match, so old copies cannot linger.
-const CACHE = 'blue-hearts-v2';
+const CACHE = 'ticketdesk-v2';
 const SHELL = [
   '/',
   '/index.html',
@@ -23,6 +23,21 @@ self.addEventListener('activate', (e) => {
     caches.keys()
       .then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
       .then(() => self.clients.claim())
+  );
+});
+
+// Android browsers will not raise a banner from the page itself; it has to
+// come from here, which means the tap on it lands here too. Bring the app
+// that is already open to the front, or open it if there is none.
+self.addEventListener('notificationclick', (e) => {
+  e.notification.close();
+  e.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((open) => {
+      for (const c of open) {
+        if ('focus' in c) return c.focus();
+      }
+      return self.clients.openWindow('/');
+    })
   );
 });
 

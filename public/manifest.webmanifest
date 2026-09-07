@@ -1,7 +1,7 @@
 {
-  "name": "Blue Hearts",
-  "short_name": "Blue Hearts",
-  "description": "A private chat for two.",
+  "name": "TicketDesk",
+  "short_name": "TicketDesk",
+  "description": "Look up and manage your bookings.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

@@ -27,12 +27,30 @@ const PASSCODE = (process.env.PASSCODE || '').trim();
 // is emptied the moment a socket disconnects -- no message history is kept.
 const members = new Map(); // socketId -> { name }
 
+// The one thing that outlives a socket: when each name was last here, so the
+// other screen can keep that name in its header and say when it was around.
+// Still RAM only, still no message ever kept, and it goes with the process.
+const lastSeen = new Map(); // name -> timestamp
+const LAST_SEEN_KEPT = 8;
+
+function markSeen(name) {
+  lastSeen.delete(name);
+  lastSeen.set(name, Date.now());
+  while (lastSeen.size > LAST_SEEN_KEPT) {
+    lastSeen.delete(lastSeen.keys().next().value);
+  }
+}
+
+function seenList() {
+  return [...lastSeen].map(([name, at]) => ({ name, at }));
+}
+
 function roster() {
   return [...members.values()].map((m) => m.name);
 }
 
 function broadcastPresence() {
-  io.emit('presence', { members: roster() });
+  io.emit('presence', { members: roster(), lastSeen: seenList() });
 }
 
 app.use(express.static(path.join(__dirname, 'public')));
@@ -64,25 +82,29 @@ io.on('connection', (socket) => {
     const raw = typeof payload === 'string' ? { name: payload } : payload || {};
     const name = String(raw.name || '').trim().slice(0, 24);
     if (!name) {
-      return ack && ack({ ok: false, error: 'Please enter a name.' });
+      return ack && ack({ ok: false, error: 'Enter the passenger name.' });
     }
     if (PASSCODE && String(raw.passcode || '').trim() !== PASSCODE) {
-      return ack && ack({ ok: false, error: 'Wrong passcode.' });
+      return ack && ack({ ok: false, error: 'No booking found.' });
     }
-    if (members.size >= MAX_MEMBERS) {
+    // A phone that slept, or a screen that reloaded, comes back on a fresh
+    // socket while the old one is still counted. Rather than tell the same
+    // person their own name is taken, the stale seat is handed over. Taking
+    // it out of the roster first leaves its disconnect nothing to report, so
+    // no departure is announced and no last-seen time is written for it.
+    for (const [id, m] of members) {
+      if (id === socket.id || m.name.toLowerCase() !== name.toLowerCase()) continue;
+      members.delete(id);
+      const stale = io.sockets.sockets.get(id);
+      if (stale) stale.disconnect(true);
+    }
+    if (members.size >= MAX_MEMBERS && !members.has(socket.id)) {
       return ack && ack({ ok: false, error: 'Not allowed.' });
-    }
-    const taken = [...members.values()].some(
-      (m) => m.name.toLowerCase() === name.toLowerCase()
-    );
-    if (taken) {
-      return ack && ack({ ok: false, error: 'That name is already in the chat.' });
     }
 
     members.set(socket.id, { name });
     socket.data.name = name;
-    ack && ack({ ok: true, name, members: roster() });
-    socket.broadcast.emit('system', { text: `${name} joined` });
+    ack && ack({ ok: true, name, members: roster(), lastSeen: seenList() });
     broadcastPresence();
   });
 
@@ -149,13 +171,13 @@ io.on('connection', (socket) => {
     const me = members.get(socket.id);
     if (!me) return;
     members.delete(socket.id);
-    io.emit('system', { text: `${me.name} left` });
+    markSeen(me.name);
     broadcastPresence();
   });
 });
 
 server.listen(PORT, () => {
-  console.log(`Blue Hearts chat running:`);
+  console.log(`TicketDesk running:`);
   console.log(`  local    http://localhost:${PORT}`);
   for (const [, addrs] of Object.entries(require('os').networkInterfaces())) {
     for (const a of addrs || []) {
